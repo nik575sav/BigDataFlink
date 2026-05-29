@@ -1,0 +1,130 @@
+services:
+  database:
+    image: postgres:16
+    container_name: lab3_postgres
+    environment:
+      POSTGRES_DB: sales_warehouse
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./sql/init_postgres.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./sql/create_star_schema.sql:/docker-entrypoint-initdb.d/02_star_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d sales_warehouse"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  zk:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: lab3_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  broker:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: lab3_kafka
+    depends_on:
+      - zk
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zk:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  broker-setup:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: lab3_kafka_setup
+    depends_on:
+      - broker
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      cub kafka-ready -b broker:29092 1 60 &&
+      kafka-topics --create --if-not-exists --topic raw_sales --bootstrap-server broker:29092 --partitions 1 --replication-factor 1
+      "
+
+  flink-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
+    container_name: lab3_flink_master
+    command: jobmanager
+    depends_on:
+      database:
+        condition: service_healthy
+      broker:
+        condition: service_started
+      broker-setup:
+        condition: service_completed_successfully
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: flink-master
+      KAFKA_BOOTSTRAP_SERVERS: broker:29092
+      KAFKA_TOPIC: raw_sales
+      KAFKA_GROUP_ID: flink_sales_group
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: sales_warehouse
+      DB_USER: admin
+      DB_PASSWORD: secret
+      PYTHONPATH: /opt/project
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./:/opt/project
+    working_dir: /opt/project
+
+  flink-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
+    container_name: lab3_flink_worker
+    command: taskmanager
+    depends_on:
+      - flink-master
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: flink-master
+      KAFKA_BOOTSTRAP_SERVERS: broker:29092
+      KAFKA_TOPIC: raw_sales
+      KAFKA_GROUP_ID: flink_sales_group
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: sales_warehouse
+      DB_USER: admin
+      DB_PASSWORD: secret
+      PYTHONPATH: /opt/project
+    volumes:
+      - ./:/opt/project
+    working_dir: /opt/project
+
+  feeder:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
+    container_name: lab3_data_feeder
+    depends_on:
+      - broker
+      - broker-setup
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: broker:29092
+      KAFKA_TOPIC: raw_sales
+      DATA_DIR: /opt/project/data
+      SEND_DELAY_SECONDS: 0.01
+    volumes:
+      - ./:/opt/project
+    working_dir: /opt/project
+    command: ["python3", "/opt/project/producer/csv_to_kafka.py"]
+
+volumes:
+  pg_data:
