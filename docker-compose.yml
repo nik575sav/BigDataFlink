@@ -9,9 +9,9 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ./sql/init_postgres.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-      - ./sql/create_star_schema.sql:/docker-entrypoint-initdb.d/02_star_schema.sql:ro
+      - db_storage:/var/lib/postgresql/data
+      - ./db_scripts/01_schema.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./db_scripts/02_ddl.sql:/docker-entrypoint-initdb.d/02_star_schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d sales_warehouse"]
       interval: 10s
@@ -108,6 +108,30 @@ services:
       - ./:/opt/project
     working_dir: /opt/project
 
+  job-submitter:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
+    container_name: lab3_flink_submitter
+    depends_on:
+      flink-master:
+        condition: service_started
+    environment:
+      FLINK_REST_ADDRESS: flink-master
+      FLINK_REST_PORT: 8081
+    volumes:
+      - ./:/opt/project
+    working_dir: /opt/project
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      echo 'Waiting for Flink REST API...' &&
+      while ! curl -s http://flink-master:8081/overview > /dev/null; do sleep 2; done &&
+      echo 'Submitting Flink job...' &&
+      /opt/flink/bin/flink run --detached --python /opt/project/processor/sink.py &&
+      echo 'Job submitted. Exiting.'
+      "
+
   feeder:
     build:
       context: .
@@ -124,7 +148,7 @@ services:
     volumes:
       - ./:/opt/project
     working_dir: /opt/project
-    command: ["python3", "/opt/project/producer/csv_to_kafka.py"]
+    command: ["python3", "/opt/project/ingester/publish.py"]
 
 volumes:
-  pg_data:
+  db_storage:
