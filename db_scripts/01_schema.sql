@@ -1,95 +1,53 @@
-DROP TABLE IF EXISTS fact_transactions CASCADE;
-DROP TABLE IF EXISTS dim_buyers CASCADE;
-DROP TABLE IF EXISTS dim_salespersons CASCADE;
-DROP TABLE IF EXISTS dim_items CASCADE;
-DROP TABLE IF EXISTS dim_shops CASCADE;
-DROP TABLE IF EXISTS dim_vendors CASCADE;
-DROP TABLE IF EXISTS dim_time CASCADE;
-
-CREATE TABLE dim_buyers (
-    buyer_key BIGINT PRIMARY KEY,
-    ext_customer_id BIGINT,
-    buyer_first_name TEXT,
-    buyer_last_name TEXT,
-    buyer_age INT,
-    buyer_email TEXT,
-    buyer_country TEXT,
-    buyer_zip TEXT,
-    buyer_pet_type TEXT,
-    buyer_pet_name TEXT,
-    buyer_pet_breed TEXT
-);
-
-CREATE TABLE dim_salespersons (
-    salesperson_key BIGINT PRIMARY KEY,
-    ext_seller_id BIGINT,
-    sp_first_name TEXT,
-    sp_last_name TEXT,
-    sp_email TEXT,
-    sp_country TEXT,
-    sp_zip TEXT
-);
-
-CREATE TABLE dim_items (
-    item_key BIGINT PRIMARY KEY,
-    ext_product_id BIGINT,
-    item_name TEXT,
-    item_category TEXT,
-    item_price NUMERIC(14,2),
-    item_quantity INT,
-    pet_type TEXT,
-    item_weight NUMERIC(14,2),
-    item_color TEXT,
-    item_size TEXT,
-    item_brand TEXT,
-    item_material TEXT,
-    item_desc TEXT,
-    item_rating NUMERIC(4,2),
-    item_reviews INT,
-    item_release_date DATE,
-    item_expiry_date DATE
-);
-
-CREATE TABLE dim_shops (
-    shop_key BIGINT PRIMARY KEY,
-    shop_name TEXT,
-    shop_location TEXT,
-    shop_city TEXT,
-    shop_state TEXT,
-    shop_country TEXT,
-    shop_phone TEXT,
-    shop_email TEXT
-);
-
-CREATE TABLE dim_vendors (
-    vendor_key BIGINT PRIMARY KEY,
-    vendor_name TEXT,
-    vendor_contact TEXT,
-    vendor_email TEXT,
-    vendor_phone TEXT,
-    vendor_address TEXT,
-    vendor_city TEXT,
-    vendor_country TEXT
-);
-
-CREATE TABLE dim_time (
-    time_key INT PRIMARY KEY,
-    calendar_date DATE,
-    day_of_month INT,
-    month_number INT,
-    month_label TEXT,
-    quarter_number INT,
-    year_number INT
-);
-
-CREATE TABLE fact_transactions (
-    transaction_id BIGINT PRIMARY KEY,
-    time_key INT REFERENCES dim_time(time_key),
-    buyer_key BIGINT REFERENCES dim_buyers(buyer_key),
-    salesperson_key BIGINT REFERENCES dim_salespersons(salesperson_key),
-    item_key BIGINT REFERENCES dim_items(item_key),
-    shop_key BIGINT REFERENCES dim_shops(shop_key),
-    vendor_key BIGINT REFERENCES dim_vendors(vendor_key),
-    quantity INT,
-    total_amount NUMERIC(14,2)
+CREATE TABLE IF NOT EXISTS public.raw_sales (
+    sale_id BIGINT,
+    sale_date DATE,
+    sale_customer_id BIGINT,
+    customer_first_name TEXT,
+    customer_last_name TEXT,
+    customer_age INT,
+    customer_email TEXT,
+    customer_country TEXT,
+    customer_postal_code TEXT,
+    customer_pet_type TEXT,
+    customer_pet_name TEXT,
+    customer_pet_breed TEXT,
+    sale_seller_id BIGINT,
+    seller_first_name TEXT,
+    seller_last_name TEXT,
+    seller_email TEXT,
+    seller_country TEXT,
+    seller_postal_code TEXT,
+    sale_product_id BIGINT,
+    product_name TEXT,
+    product_category TEXT,
+    product_price NUMERIC(14,2),
+    product_quantity INT,
+    pet_category TEXT,
+    product_weight NUMERIC(14,2),
+    product_color TEXT,
+    product_size TEXT,
+    product_brand TEXT,
+    product_material TEXT,
+    product_description TEXT,
+    product_rating NUMERIC(4,2),
+    product_reviews INT,
+    product_release_date DATE,
+    product_expiry_date DATE,
+    sale_quantity INT,
+    sale_total_price NUMERIC(14,2),
+    store_name TEXT,
+    store_location TEXT,
+    store_city TEXT,
+    store_state TEXT,
+    store_country TEXT,
+    store_phone TEXT,
+    store_email TEXT,
+    supplier_name TEXT,
+    supplier_contact TEXT,
+    supplier_email TEXT,
+    supplier_phone TEXT,
+    supplier_address TEXT,
+    supplier_city TEXT,
+    supplier_country TEXT,
+    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
